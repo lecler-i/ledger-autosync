@@ -269,6 +269,7 @@ class Converter(object):
         self.date_format = date_format
         self.infer_account = infer_account
 
+    #TODO: Add custom fuction to guess account for the expense
     def mk_dynamic_account(self, payee, exclude):
         if self.lgr is None or not self.infer_account:
             return self.unknownaccount or "Expenses:Misc"
@@ -349,6 +350,9 @@ class OfxConverter(Converter):
             tferaction = txn.tferaction.lower()
 
         if payee != "" and self.lgr is not None:
+            # Delete dates from transaction name
+            #TODO: Keep it and add it as metadata date
+            payee = re.sub(r'(.*)([0-9]{2}\/?[0-9]{2}\/?[0-9]{2})(.*)', r'\1\3', payee)
             payee = self.lgr.get_autosync_payee(payee, self.name)
 
         # If payee is blank but memo is not, then try matching Ledger payee
@@ -360,7 +364,7 @@ class OfxConverter(Converter):
 
         if payee_format is None:
             # Default when not provided
-            payee_format = "{payee} {memo}"
+            payee_format = "{memo} {payee}"
 
             # Alternate for when payee and memo are blank, sometimes true for
             # investment accounts.
@@ -375,13 +379,13 @@ class OfxConverter(Converter):
             if payee.startswith(memo):
                 memo = ""
 
-        return payee_format.format(
+        return " ".join(payee_format.format(
             payee=payee,
             memo=memo,
             txntype=txntype,
             account=self.name,
             tferaction=tferaction,
-        ).strip()
+        ).split())
 
     def format_balance(self, statement):
         # Get date. Ensure the date is a date-like object.
@@ -719,7 +723,7 @@ class PaypalConverter(CsvConverter):
                     posting.clone_inverted("Expenses:Misc"),
                 ]
             return Transaction(
-                date=datetime.datetime.strptime(row["Date"], "%m/%d/%Y"),
+                date=datetime.datetime.strptime(row["Date"], "%d/%m/%Y"),
                 payee=self.format_payee(row),
                 postings=postings,
                 date_format=self.date_format,
